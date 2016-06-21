@@ -11,7 +11,7 @@ public:
 };
 
 <% tables.each do |clazz| %>
-    class <%= clazz[:name] %> {
+    class <%= clazz[:fullname].gsub(".","::") %> {
     public:
         enum class Fields {
             <%= clazz[:fields].collect{|i| i[:name].to_s.upcase}.join(",") %>
@@ -66,6 +66,11 @@ public:
         void hasChanged()
         {
             return changed_.any();
+        }
+        
+        void clearChanges()
+        {
+            changed_.clear();
         }
         
         const std::vector<std::string>& fields() const

@@ -1,8 +1,15 @@
 require 'erb'
 load 'parse.rb'
 
-mini = Mini.new
-idl = mini.parse(File.readlines("../test.idl").join("\n"))
+idl = nil
+begin
+  mini = Mini.new
+  idl = mini.parse(File.readlines("../test.idl").join(""))
+rescue Parslet::ParseFailed => failure
+  puts failure.cause.ascii_tree
+end
+
+pp idl
 
 # Extract most common datastructures
 tables = idl.select{|t| t[:type].is_a?(Hash) and t[:type][:type] == "table"}.collect{|t| t[:type]}
@@ -14,6 +21,7 @@ namespace = idl.select{|t| t.has_key?(:namespace)}.first[:namespace]
 # Generate some helper things
 [tables,structs].each do |e|
   e.each do |t|
+    t[:fullname] = namespace[:name].to_s + "." + t[:name]
     t[:fields].each do |f|
       if f[:type].is_a?(Hash)
         f[:dtype] = :array
@@ -24,8 +32,17 @@ namespace = idl.select{|t| t.has_key?(:namespace)}.first[:namespace]
   end
 end
 
-pp tables
-pp idl
+def isClass(name)
+  [tables,structs].each do |e|
+    e.each do |t|
+      if t[:name].to_s == name
+        return true
+      end
+    end
+  end
+  return false
+end
+
 
 
 Dir.glob("*.erb").each do |template|
