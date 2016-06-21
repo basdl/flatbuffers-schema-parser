@@ -1,0 +1,49 @@
+<% tables.each do |clazz| %>
+    void iterate<<%= clazz[:name] %>>(<%= clazz[:name] %>* obj, callback)
+    {
+        <% clazz[:fields].each_with_index do |field,i| %>
+            <% if field[:dtype] == :array %>
+                if(obj->CheckField(<%= clazz[:name] %>::VT_<%= field[:name].to_s.upcase %>))
+                {
+                    for(int i = 0; i < sizeofarray; ++i)
+                    {
+                        callback(i, <%= clazz[:name] %>::VT_<%= field[:name].to_s.upcase %>);
+                    }
+                }
+            <% else %>
+                if(obj->CheckField(<%= clazz[:name] %>::VT_<%= field[:name].to_s.upcase %>))
+                    callback(<%= clazz[:name] %>::VT_<%= field[:name].to_s.upcase %>);
+            <% end %>
+        <% end %>
+    }
+
+class I<%= clazz[:name] %>Visitor
+{
+public:
+  void visit(<%=clazz[:name]%>* obj)
+  {
+    <% clazz[:fields].each_with_index do |field,i| %>
+        <% if field[:dtype] == :array %>
+            if(obj->CheckField(<%= clazz[:name] %>::VT_<%= field[:name].to_s.upcase %>))
+            {
+                for(int i = 0; i < sizeofarray; ++i)
+                {
+                    visit<%= field[:name].to_s.capitalize %>(i, <%= clazz[:name] %>::VT_<%= field[:name].to_s.upcase %>);
+                }
+            }
+        <% else %>
+            if(obj->CheckField(<%= clazz[:name] %>::VT_<%= field[:name].to_s.upcase %>))
+                visit<%= field[:name].to_s.capitalize %>(<%= clazz[:name] %>::VT_<%= field[:name].to_s.upcase %>);
+        <% end %>
+    <% end %>
+  }
+private:
+  <% clazz[:fields].each_with_index do |field,i| %>
+      <% if field[:dtype] == :array %>
+        virtual void visit<%= field[:name].to_s.capitalize %>(size_t index, const <%=field[:type][:array]%>& value) {}
+      <% else %>
+        virtual void visit<%= field[:name].to_s.capitalize %>(<%=field[:type]%> value) {}
+      <% end %>
+  <% end %>
+};
+<% end %>
