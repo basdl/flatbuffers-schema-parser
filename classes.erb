@@ -1,0 +1,126 @@
+namespace <%= namespace[:name] %>;
+
+class ISerializable
+{
+public:
+    virtual bool hasChanged() = 0;
+    virtual bool hasChanged(const std::string& field) = 0;
+    virtual boost::any getField(const std::string& field) = 0;
+    virtual void setField(const std::string& field, boost::any value) = 0;
+    virtual void serialize(flatbuffers::FlatbufferBuilder& fbb) = 0;
+};
+
+<% tables.each do |clazz| %>
+    class <%= clazz[:name] %> {
+    public:
+        enum class Fields {
+            <%= clazz[:fields].collect{|i| i[:name].to_s.upcase}.join(",") %>
+        };
+        
+        static const std::vector<std::string> FieldNames{<%= clazz[:fields].collect{|i| "\"#{i[:name].to_s}\""}.join(",") %>};
+    
+        void serialize(flatbuffers::FlatbufferBuilder& fbb)
+        {
+            <%= clazz[:name] %>Builder builder;
+            <% clazz[:fields].each_with_index do |field,i| %>
+                if(hasChanged(<%= i %>))
+                {
+                    builder.add_<%= field[:name] %>(<%= field[:name] %>());
+                }
+            <% end %>
+            fbb.Finish(builder.Finish());
+        }
+        
+        <% clazz[:fields].each_with_index do |field,i| %>
+            <% typeName = (field[:dtype] == :array) ? "std::vector<#{field[:type][:array]}>" : field[:type] %>
+            <%= typeName %> <%= field[:name] %>()
+            {
+                return <%= field[:name] %>_;
+            }
+            
+            void <%= field[:name] %>(const <%= typeName %>& value)
+            {
+                <%= field[:name] %>_ = value;
+                changed_[<%=i%>] = true;
+            }
+            
+            <% if field[:dtype] == :array %>
+            <%= field[:type][:array] %> <%= field[:name] %>(size_t index)
+            {
+                return <%= field[:name] %>_[index];
+            }
+            
+            void <%= field[:name] %>(size_t index, const <%= field[:type][:array] %>& value)
+            {
+                <%= field[:name] %>_[index] = value;
+                changed_[<%=i%>] = true;
+            }
+            <% end %> 
+        <% end %>
+        
+        void hasChanged(unsigned int field)
+        {
+            return changed_[field];
+        }
+        
+        void hasChanged()
+        {
+            return changed_.any();
+        }
+        
+        const std::vector<std::string>& fields() const
+        {
+            return std::ref(FieldNames);
+        }
+        
+        boost::any getField(const std::string& field)
+        {
+            <% clazz[:fields].each_with_index do |field,i| %>
+                if(field == "<%=field[:name]%>")
+                    return <%=field[:name]%>_;
+            <% end %>
+        }
+        
+        boost::any getField(unsigned int field)
+        {
+            <% clazz[:fields].each_with_index do |field,i| %>
+                if(field == i)
+                    return <%= field[:name] %>_;
+            <% end %>
+        }
+        
+        void setField(const std::string& field, boost::any value)
+        {
+            <% clazz[:fields].each_with_index do |field,i| %>
+                if(field == "<%=field[:name]%>")
+                    <%=field[:name]%>_ = value;
+            <% end %>
+        }
+        
+        void iterateChanges(const std::function<void(const std::string& field, boost::any& value)>& handler)
+        {
+            for(unsigned int i = 0; i < bitset_.size(); ++i)
+            {
+                if(changed_[i])
+                {
+                    handler("TODO", getField(i));
+                }
+            }
+        }
+        
+    private:
+        std::bitset<<%= clazz[:fields].count %>> changed_;
+        <% clazz[:fields].each_with_index do |field,i| %>
+            <% if field[:dtype] == :array %>
+                std::vector<<%= field[:type][:array] %>> <%= field[:name] %>_;
+            <% else %>
+                <%= field[:type] %> <%= field[:name] %>_;
+            <% end %>
+        <% end %>
+    }
+<% end %>
+
+Structs: 
+<% structs.each do |clazz| %>
+    <%= clazz[:name] %>
+<% end %>
